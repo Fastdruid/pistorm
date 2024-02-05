@@ -6,6 +6,15 @@
   Niklas Ekström 2021 (https://github.com/niklasekstrom)
 */
 
+/*
+
+ v 1.1.0 - David Sharp - 2024/02/05
+ Attempt to merge the Atari-Pistorm FC handling code in.
+ ==== HOLD MY BEER ====
+
+*/
+
+
 #include <errno.h>
 #include <fcntl.h>
 #include <stddef.h>
@@ -16,9 +25,27 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
-
+// #include <pthread.h> // ST uses this
 #include "ps_protocol.h"
 #include "m68k.h"
+//#include <pthread.h> // ST uses this
+
+/*
+ST uses these not sure what the IRQ stuff does but the second is for BERR stuff. 
+
+#define CHECK_IRQ(x) (!(x & 0x02) )
+#define CHECK_BERR(x) (!(x & 0x20) )
+*/
+// ST version uses 0xFFFFCC, Original version used 0xffffec... I'm going to try both but starting with the original...
+#define TXN_END 0xFFFFEC 
+//#define TXN_END 0xFFFFCC 
+/*
+// This needs firmware changes. 
+#define PIN_BERR PIN_RESET 
+
+*/
+
+
 
 volatile unsigned int *gpio;
 volatile unsigned int *gpclk;
@@ -30,6 +57,10 @@ unsigned int gpfsel2;
 unsigned int gpfsel0_o;
 unsigned int gpfsel1_o;
 unsigned int gpfsel2_o;
+
+uint8_t fc; 
+
+
 
 static void setup_io() {
   int fd = open("/dev/mem", O_RDWR | O_SYNC);
@@ -57,6 +88,27 @@ static void setup_io() {
   gpio = ((volatile unsigned *)gpio_map) + GPIO_ADDR / 4;
   gpclk = ((volatile unsigned *)gpio_map) + GPCLK_ADDR / 4;
 }
+
+/*
+GPIO
+gpio + 0  = GPFSEL0 GPIO Function Select 0
+gpio + 1  = GPFSEL1 GPIO Function Select 1
+gpio + 2  = GPFSEL2 GPIO Function Select 2
+gpio + 7  = GPSET   GPIO Pin Output Set 0
+gpio + 10 = GPCLR   GPIO Pin Output Clear 0
+gpio + 13 = GPLEV   GPIO Pin Levl 0
+gpio + 16 = GPEDS   GPIO Pin Event Detect Status 0
+gpio + 19 = GPREN   GPIO Pin Rising Edge Detect Enable 0
+gpio + 22 = GPFEN   GPIO Pin Falling Edge Detect Enable 0
+gpio + 25 = GPHEN   GPIO Pin High Detect Enable 0
+gpio + 28 = GPLEN   GPIO Pin Low Detect Enable 0
+gpio + 31 = GPAREN  GPIO Pin Asysnchronous Rising Edge Detect Enable 0
+gpio + 34 = GPAFEN  GPIO Pin Asysnchronous Falling Edge Detect Enable 0
+*/
+
+
+//Hmmm. I may just pull in the entirty of the clock stuff from the ST version. 
+
 
 static void setup_gpclk() {
   // Enable 200MHz CLK output on GPIO4, adjust divider and pll source depending
@@ -98,17 +150,17 @@ void ps_write_16(unsigned int address, unsigned int data) {
   *(gpio + 7) = ((data & 0xffff) << 8) | (REG_DATA << PIN_A0);
   *(gpio + 7) = 1 << PIN_WR;
   *(gpio + 10) = 1 << PIN_WR;
-  *(gpio + 10) = 0xffffec;
+  *(gpio + 10) = TXN_END;
 
   *(gpio + 7) = ((address & 0xffff) << 8) | (REG_ADDR_LO << PIN_A0);
   *(gpio + 7) = 1 << PIN_WR;
   *(gpio + 10) = 1 << PIN_WR;
-  *(gpio + 10) = 0xffffec;
+  *(gpio + 10) = TXN_END;
 
-  *(gpio + 7) = ((0x0000 | (address >> 16)) << 8) | (REG_ADDR_HI << PIN_A0);
+  *(gpio + 7) = (((fc << 13) | (address >> 16)) << 8) | (REG_ADDR_HI << PIN_A0); //
   *(gpio + 7) = 1 << PIN_WR;
   *(gpio + 10) = 1 << PIN_WR;
-  *(gpio + 10) = 0xffffec;
+  *(gpio + 10) = TXN_END;
 
   *(gpio + 0) = GPFSEL0_INPUT;
   *(gpio + 1) = GPFSEL1_INPUT;

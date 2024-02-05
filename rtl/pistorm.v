@@ -173,13 +173,13 @@ TBA - Insert description of SN74CBTD3384PWLE (its some kind of line driver / buf
   wire rd_rising = !rd_sync[1] && rd_sync[0]; // define some wires to detect if PI_RD is rising or falling
   wire wr_rising = !wr_sync[1] && wr_sync[0]; // define some wires to detect if PI_WR is rising or falling
 
-  reg [15:0] data_out; // define data_out variable (16 bits)
-  assign PI_D = PI_A == REG_STATUS && PI_RD ? data_out : 16'bz; // PI_D is either writing data or high impedance
+  reg [15:0] data_out; // define data_out variable (16 bits). This is data that gets passed back to the Pi
+  assign PI_D = PI_A == REG_STATUS && PI_RD ? data_out : 16'bz; // If we're on "REG_STATUS" mode *AND* PI_RD then set PI_D to be data_out otherwise set high impedance. This lets us transfer data back to the Pi...
 
 // On the rising edge of c200m (the PI clock) 
   always @(posedge c200m) begin
     if (rd_rising && PI_A == REG_STATUS) begin
-      data_out <= {ipl, 13'd0};
+      data_out <= {ipl, 13'd0}; // Set the data back to the Pi to contain IPL0-3 and 13 bits of nothing...ST firmware also passes reset here and uses the reset pin for BERR. It seems a waste not to use this more...
     end
   end
 
@@ -356,7 +356,7 @@ REG_STATUS ###########################################################
           op_lds_n <= PI_D[8] ? !a0 : 1'b0; // Set LDS based off a0
         end
         REG_STATUS: begin // PI_A is 11
-          status <= PI_D; // Grab the status from the PI
+          status <= PI_D; // Grab the status from the PI. Of which only INIT and RESET is used. 
         end
       endcase
     end
