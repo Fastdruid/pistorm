@@ -62,6 +62,7 @@ extern uint8_t gayle_ide_enabled;
 extern uint8_t gayle_emulation_enabled;
 extern uint8_t gayle_a4k_int;
 extern volatile unsigned int *gpio;
+extern uint8_t fc; // Attempt to add in proper FC handling. Copied from pistorm-atari
 extern volatile uint16_t srdata;
 extern uint8_t realtime_graphics_debug, emulator_exiting;
 extern uint8_t rtg_on;
@@ -739,6 +740,7 @@ void cpu_pulse_reset(void) {
 
 unsigned int cpu_irq_ack(int level) {
   //printf("cpu irq ack\n");
+  fc = 0x7; //CPU interrupt acknowledge
   return 24 + level;
 }
 
@@ -1171,4 +1173,9 @@ void m68k_write_memory_32(unsigned int address, unsigned int value) {
   ps_write_16((uint32_t)address, value >> 16);
   ps_write_16((uint32_t)address + 2, value);
   return;
+}
+
+void cpu_set_fc ( unsigned int _fc )
+{
+        fc = _fc;
 }
